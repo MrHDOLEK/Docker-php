@@ -1,0 +1,78 @@
+version: '3.7'
+services:
+  # PHP-FPM - Service
+  php:
+    build:
+      context: .
+      dockerfile: ./.docker/php/Dockerfile
+    ports:
+      - "9000:9000"
+    container_name: php
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - ./.docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+
+    networks:
+      - php-network
+
+  # NGINX - Service
+  www:
+    image: nginx:1.19.4-alpine
+    container_name: www
+    depends_on:
+      - php
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8180:80"
+    volumes:
+      - ./:/var/www
+      - ./.docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - php-network
+  # MySQL - Service
+  db:
+    image: mysql:8.0.22
+    command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci','--default-authentication-plugin=mysql_native_password']
+    container_name: db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3315:3306"
+    environment:
+      MYSQL_DATABASE: db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+      MYSQL_ROOT_PASSWORD: rootpass
+    volumes:
+      - ./.docker/databases:/var/lib/mysql/
+    networks:
+      - php-network
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:4.8
+    restart: always
+    links:
+      - db:db
+    ports:
+      - 8181:80
+    depends_on: 
+      - db
+    networks: 
+      - php-network
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: rootpass
+
+# Volumes
+volumes:
+  mysqldata:
+    driver: local
+
+# Networks
+networks:
+  php-network:
+    driver: bridge
